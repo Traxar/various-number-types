@@ -12,7 +12,8 @@ pub fn Type(F: type) type {
 
         pub const zero = from(0);
         pub const one = from(1);
-        pub const eps = from(std.math.pow(F, 2, -(mantissa_bits + 1))); //ceil(max rounding error)
+        pub const epsilon_relative = from(std.math.pow(F, 2, -mantissa_bits));
+        pub const epsilon_absolute = zero; //from(std.math.floatMin(F));
 
         const mantissa_bits = switch (F) {
             f16 => 10,

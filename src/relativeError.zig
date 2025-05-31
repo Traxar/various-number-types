@@ -16,46 +16,46 @@ pub fn Type(Number: type, options: Options(Number)) type {
         const NumberAndError = @This();
 
         value: Number,
-        relative_error: Number,
+        double_error: Number,
 
-        pub const zero = NumberAndError{ .value = Number.zero, .relative_error = Number.zero };
-        pub const one = NumberAndError{ .value = Number.one, .relative_error = Number.zero };
-        pub const eps = NumberAndError{ .value = Number.eps, .relative_error = Number.zero }; //max rounding error
+        pub const zero = NumberAndError{ .value = Number.zero, .double_error = Number.zero };
+        pub const one = NumberAndError{ .value = Number.one, .double_error = Number.zero };
+        pub const epsilon_relative = NumberAndError{ .value = Number.epsilon_relative, .double_error = Number.zero };
+        pub const epsilon_absolute = NumberAndError{ .value = Number.epsilon_absolute, .double_error = Number.zero };
 
         /// initialized relative error to rounding error
         pub fn from(value: anytype) NumberAndError {
             return fromCalc(Number.from(value), Number.zero);
         }
 
-        /// for now the denormalized case is ignored
         fn fromCalc(value: Number, calc_error: Number) NumberAndError {
-            const err = calc_error.add(Number.eps);
+            const err = calc_error.add(Number.epsilon_relative.max(Number.epsilon_absolute.div(value.abs().max(.one))));
             if (options.error_bound) |error_bound|
                 assert(err.lt(error_bound)); //numerical error to big
-            return .{ .value = value, .relative_error = err };
+            return .{ .value = value, .double_error = err };
         }
 
         pub fn abs(a: NumberAndError) NumberAndError {
-            return .{ .value = a.value.abs(), .relative_error = a.relative_error };
+            return .{ .value = a.value.abs(), .double_error = a.double_error };
         }
 
         pub fn neg(a: NumberAndError) NumberAndError {
-            return .{ .value = a.value.neg(), .relative_error = a.relative_error };
+            return .{ .value = a.value.neg(), .double_error = a.double_error };
         }
 
         pub fn inv(a: NumberAndError) NumberAndError {
-            return fromCalc(a.value.inv(), a.relative_error);
+            return fromCalc(a.value.inv(), a.double_error);
         }
 
         pub fn add(a: NumberAndError, b: NumberAndError) NumberAndError {
             const c = a.value.add(b.value);
             const err =
-                if (a.relative_error.eq(Number.zero) and b.relative_error.eq(Number.zero))
+                if (a.double_error.eq(Number.zero) and b.double_error.eq(Number.zero))
                     Number.zero
                 else if (options.reduce_error_error and (Number.zero.lt(a.value.mul(b.value))))
-                    a.relative_error.max(b.relative_error)
+                    a.double_error.max(b.double_error)
                 else
-                    a.relative_error.mul(a.value.abs()).add(b.relative_error.mul(b.value.abs())).div(c.abs());
+                    a.double_error.mul(a.value.abs()).add(b.double_error.mul(b.value.abs())).div(c.abs());
             return fromCalc(c, err);
         }
 
@@ -65,13 +65,13 @@ pub fn Type(Number: type, options: Options(Number)) type {
 
         pub fn mul(a: NumberAndError, b: NumberAndError) NumberAndError {
             const c = a.value.mul(b.value);
-            const err = a.relative_error.add(b.relative_error);
+            const err = a.double_error.add(b.double_error);
             return fromCalc(c, err);
         }
 
         pub fn div(a: NumberAndError, b: NumberAndError) NumberAndError {
             const c = a.value.div(b.value);
-            const err = a.relative_error.add(b.relative_error);
+            const err = a.double_error.add(b.double_error);
             return fromCalc(c, err);
         }
 
@@ -93,9 +93,9 @@ pub fn Type(Number: type, options: Options(Number)) type {
     };
 }
 
-test "error estimate" {
+test "relative error estimate" {
     const log = Log(false);
-    log("automatic error estimate:\n", .{});
+    log("relative error estimate\n", .{});
     const F = @import("float.zig").Type(f32);
     const D = Type(F, .{ .error_bound = .from(1) });
     const n = 1e6;
@@ -105,18 +105,18 @@ test "error estimate" {
     for (0..n) |_| {
         sum = sum.add(D.from(a));
     }
-    log("  sum = {}\n", .{sum.value});
-    log("  error ~= {}\n", .{sum.relative_error});
+    log("  sum = {}\n", .{sum.value.value});
+    log("  error ~= {}\n", .{sum.double_error.value / 2});
 
     const err = F.from(a).mul(F.from(n)).sub(sum.value).div(sum.value).abs();
-    log("  actual error = {}\n", .{err});
+    log("  actual error = {}\n", .{err.value});
 }
 
-test "error error estimate" {
-    const log = Log(false);
-    log("automatic (automatic error estimate) error estimate:\n", .{});
+test "relative error error estimate" {
+    const log = Log(true);
+    log("relative error error estimate:\n", .{});
     const F = Type(@import("float.zig").Type(f32), .{});
-    const D = Type(F, .{ .reduce_error_error = false, .error_bound = .one });
+    const D = Type(F, .{ .reduce_error_error = true });
     const n = 1e6;
     const a = 1.3;
 
@@ -124,14 +124,14 @@ test "error error estimate" {
     for (0..n) |_| {
         sum = sum.add(D.from(a));
     }
-    log("  sum = {}\n", .{sum.value.value});
-    log("  error ~= {}\n", .{sum.relative_error.value});
-    log("  error error ~= {}\n", .{sum.relative_error.relative_error});
+    log("  sum = {}\n", .{sum.value.value.value});
+    log("  error ~= {}\n", .{sum.double_error.value.value / 2});
+    log("  error error ~= {}\n", .{sum.double_error.double_error.value / 2});
 
     const sum_ = F.from(sum.value.value.value);
     const err = F.from(a).mul(F.from(n)).sub(sum_).div(sum_).abs();
-    log("  actual error ~= {}\n", .{err.value});
-    log("  (actual error) error ~= {}\n", .{err.relative_error});
+    log("  actual error ~= {}\n", .{err.value.value});
+    log("  (actual error) error ~= {}\n", .{err.double_error.value / 2});
 }
 
 fn Log(comptime do: bool) fn (comptime fmt: []const u8, args: anytype) void {

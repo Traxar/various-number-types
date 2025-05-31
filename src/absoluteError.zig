@@ -46,7 +46,10 @@ pub fn Type(Number: type, options: Options(Number)) type {
 
         pub fn inv(a: NumberAndError) NumberAndError {
             const c = a.value.inv();
-            const err = a.double_error.div(a.value.abs().sub(a.double_error).abs());
+            const two = comptime Number.one.add(.one);
+            const p = two.mul(a.double_error).mul(c.abs());
+            const q = two.mul(a.value.abs()).sub(a.double_error).max(.zero);
+            const err = p.div(q);
             return fromCalc(c, err);
         }
 
@@ -68,7 +71,10 @@ pub fn Type(Number: type, options: Options(Number)) type {
 
         pub fn div(a: NumberAndError, b: NumberAndError) NumberAndError {
             const c = a.value.div(b.value);
-            const err = a.double_error.mul(b.value.abs()).add(b.double_error.mul(a.value.abs())).div(b.value.abs().sub(b.double_error).abs());
+            const two = comptime Number.one.add(.one);
+            const p = two.mul(a.double_error).add(two.mul(b.double_error).mul(c.abs()));
+            const q = two.mul(b.value.abs()).sub(b.double_error).max(.zero);
+            const err = p.div(q);
             return fromCalc(c, err);
         }
 
@@ -104,18 +110,18 @@ test "absolute error estimate" {
     for (0..n) |_| {
         sum = sum.add(D.from(a));
     }
-    log("  sum = {}\n", .{sum.value});
-    log("  error ~= {}\n", .{sum.double_error});
+    log("  sum = {}\n", .{sum.value.value});
+    log("  error ~= {}\n", .{sum.double_error.value / 2});
 
     const err = F.from(a).mul(F.from(n)).sub(sum.value).abs();
-    log("  actual error = {}\n", .{err});
+    log("  actual error = {}\n", .{err.value});
 }
 
 test "absolute error error estimate" {
     const log = Log(true);
     log("absolute error error estimate:\n", .{});
     const F = Type(@import("float.zig").Type(f32), .{});
-    const D = Type(F, .{ .reduce_error_error = false });
+    const D = Type(F, .{ .reduce_error_error = true });
     const n = 1e6;
     const a = 1.3;
 
@@ -123,14 +129,14 @@ test "absolute error error estimate" {
     for (0..n) |_| {
         sum = sum.add(D.from(a));
     }
-    log("  sum = {}\n", .{sum.value.value});
-    log("  error ~= {}\n", .{sum.double_error.value});
-    log("  error error ~= {}\n", .{sum.double_error.double_error});
+    log("  sum = {}\n", .{sum.value.value.value});
+    log("  error ~= {}\n", .{sum.double_error.value.value / 2});
+    log("  error error ~= {}\n", .{sum.double_error.double_error.value / 4});
 
     const sum_ = F.from(sum.value.value.value);
     const err = F.from(a).mul(F.from(n)).sub(sum_).abs();
-    log("  actual error ~= {}\n", .{err.value});
-    log("  (actual error) error ~= {}\n", .{err.double_error});
+    log("  actual error ~= {}\n", .{err.value.value});
+    log("  (actual error) error ~= {}\n", .{err.double_error.value / 2});
 }
 
 fn Log(comptime do: bool) fn (comptime fmt: []const u8, args: anytype) void {
