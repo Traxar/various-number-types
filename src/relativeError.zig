@@ -9,7 +9,7 @@ fn Options(Number: type) type {
     };
 }
 
-/// returns a float that keeps track of its own 1st order relative error estimate
+/// adds an 1st order relative error estimate error to the number type
 /// assumes the result is always rounded to its closest representative
 pub fn Type(Number: type, options: Options(Number)) type {
     return struct {

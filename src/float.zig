@@ -2,7 +2,7 @@ const std = @import("std");
 const assert = std.debug.assert;
 const expect = std.testing.expect;
 
-/// returns a float that keeps track of its own numerical error
+/// returns a wrapper around a float
 pub fn Type(F: type) type {
     if (@typeInfo(F) != .float) @compileError("`Float` must be a float type");
     return struct {
